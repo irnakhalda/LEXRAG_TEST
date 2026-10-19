@@ -5,7 +5,6 @@ import langid
 import bm25s
 import numpy as np
 from tqdm import tqdm
-from pyserini.search.lucene import LuceneSearcher
 from bm25s.tokenization import Tokenized
 import math
 import subprocess
@@ -103,6 +102,7 @@ class LexicalRetriever:
         
         os.makedirs(index_dir, exist_ok=True)
         subprocess.run(["python", "-m", "pyserini.index.lucene"] + args)
+        from pyserini.search.lucene import LuceneSearcher
         self.searcher = LuceneSearcher(index_dir)
         if lang == 'zh':
             self.searcher.set_language('zh')

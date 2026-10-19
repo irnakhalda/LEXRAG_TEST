@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+data/retrieval/
+data/generated_samples/
+data/prompt/
+data/results/
+data/law_library/temp.jsonl
+data/generated_responses.jsonl
+log
+.ipynb_checkpoints/

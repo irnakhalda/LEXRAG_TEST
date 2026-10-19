@@ -1,10 +1,11 @@
 import os
+import re
 import json
+import time
 import httpx
 from tqdm import tqdm
 import concurrent.futures
 from openai import OpenAI
-from zhipuai import ZhipuAI
 
 class Judge:
     def __init__(self, config):
@@ -19,6 +20,7 @@ class Judge:
                 ),
             )
         elif self.config.get("model_type") == "zhipu":
+            from zhipuai import ZhipuAI
             self.client = ZhipuAI(api_key=self.config["api_key"])
         elif self.config.get("model_type") in ["qwen","llama"]:
             self.client = OpenAI(
@@ -30,7 +32,7 @@ class Judge:
         self.max_workers = self.config.get("max_parallel")
 
     def evaluate(self, prompt):
-        for _ in range(self.max_retries):
+        for attempt in range(self.max_retries):
             try:
                 response = self.client.chat.completions.create(
                     model=self.model,
@@ -39,7 +41,8 @@ class Judge:
                 )
                 return response.choices[0].message.content
             except Exception as e:
-                print(f"API Error: {str(e)}")
+                print(f"API Error (Attempt {attempt+1}): {str(e)}")
+                time.sleep(2 ** attempt)
         return "Evaluation Fail"
 
 def process_turn(config, turn):
@@ -84,3 +87,41 @@ def process_turn(config, turn):
                     "response": response
                 }
                 f.write(json.dumps(result, ensure_ascii=False) + '\n')
+
+SCORE_PATTERN = re.compile(r"['\"]综合得分['\"]\s*[:：]\s*(\d+(?:\.\d+)?)")
+
+def parse_judge_score(response_text):
+    if not response_text or response_text == "Evaluation Fail":
+        return None
+    match = SCORE_PATTERN.search(response_text)
+    return float(match.group(1)) if match else None
+
+def aggregate_judge_results(n_turns=5):
+    """Mean 综合得分 per turn from data/results/turn{n}/judge_results.jsonl"""
+    summary = {}
+    for turn in range(1, n_turns + 1):
+        output_file = f"data/results/turn{turn}/judge_results.jsonl"
+        if not os.path.exists(output_file):
+            continue
+        scores = []
+        with open(output_file, encoding="utf-8") as f:
+            for line in f:
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                score = parse_judge_score(record.get("response", ""))
+                if score is not None:
+                    scores.append(score)
+        if scores:
+            summary[f"turn{turn}"] = {
+                "n": len(scores),
+                "mean_score": round(sum(scores) / len(scores), 4)
+            }
+    if summary:
+        overall = [s["mean_score"] for s in summary.values()]
+        summary["overall"] = {
+            "n": sum(s["n"] for s in summary.values()),
+            "mean_score": round(sum(overall) / len(overall), 4)
+        }
+    return summary

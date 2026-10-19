@@ -5,7 +5,6 @@ from tqdm import tqdm
 from pathlib import Path
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from zhipuai import ZhipuAI
 
 class Rewriter:
     def __init__(self, config, max_retries, max_parallel, batch_size):
@@ -25,6 +24,7 @@ class Rewriter:
                 ),
             )
         elif self.config.get("model_type") == "zhipu":
+            from zhipuai import ZhipuAI
             self.client = ZhipuAI(api_key=self.config.get("api_key"))
         elif self.config.get("model_type") in ["qwen","llama"]:
             self.client = OpenAI(

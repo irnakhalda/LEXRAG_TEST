@@ -61,7 +61,7 @@ class GenerationEvaluator(BaseEvaluator):
                 metrics_result.update(self.metric_calculator._get_meteor(preds, refs))
             
             turn_num = os.path.splitext(turn_file)[0].split('_')[-1]
-            results[turn_num] = {k:v for k,v in metrics_result.items() if k in metrics}
+            results[turn_num] = metrics_result
             logging.info(f"\nTurn{turn_num.upper()} Metrics:")
             for k, v in metrics_result.items():
                 logging.info(f"{k.ljust(15)}: {v:.4f}")
@@ -90,7 +90,6 @@ class LLMJudge(BaseEvaluator):
     def __init__(self, config):
         super().__init__(config)
         from openai import OpenAI
-        from zhipuai import ZhipuAI
         import httpx
         from eval.llm_as_judge.run_judge import Judge
         if self.config["model_type"] == "openai":
@@ -103,11 +102,12 @@ class LLMJudge(BaseEvaluator):
                 ),
             )
         elif self.config["model_type"] == "zhipu":
+            from zhipuai import ZhipuAI
             self.client = ZhipuAI(api_key=self.config["api_key"])
         elif self.config["model_type"] in ["qwen","llama"]:
             self.client = OpenAI(
                 base_url=self.config["api_base"], 
-                api_key=self.config["key"]
+                api_key=self.config["api_key"]
             )
         self.model_name = self.config["model_name"]
         Judge(self.config)

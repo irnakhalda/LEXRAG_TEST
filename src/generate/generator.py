@@ -1,11 +1,9 @@
 import os
 import logging
 import json
-import json
 import time
 from typing import List
 from tqdm import tqdm
-from zhipuai import ZhipuAI
 from openai import OpenAI
 import httpx
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -149,13 +147,14 @@ class OpenAIGenerator(BaseGenerator):
                         self._save_results({r["id"]: r for r in current_batch})
                         futures.clear()  
             
+                current_batch = []
                 if futures:
-                    current_batch = []
                     for future in as_completed(futures):
                         result = future.result()
                         result_dict[result["id"]] = result
                         current_batch.append(result)
-                self._save_results({r["id"]: r for r in current_batch})
+                if current_batch:
+                    self._save_results({r["id"]: r for r in current_batch})
         
         return [result_dict[id] for id in sorted(id_list, key=lambda x: int(x.split("_")[0]))]
 
@@ -164,6 +163,7 @@ class ZhipuGenerator(BaseGenerator):
     def __init__(self, prompt_builder, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.prompt_builder = prompt_builder
+        from zhipuai import ZhipuAI
         self.client = ZhipuAI(api_key=self.config["api_key"])
         self.model = self.config.get("model_name", "glm-4-flash")
 
@@ -267,13 +267,14 @@ class ZhipuGenerator(BaseGenerator):
                         self._save_results({r["id"]: r for r in current_batch})
                         futures.clear()  
             
+                current_batch = []
                 if futures:
-                    current_batch = []
                     for future in as_completed(futures):
                         result = future.result()
                         result_dict[result["id"]] = result
                         current_batch.append(result)
-                self._save_results({r["id"]: r for r in current_batch})
+                if current_batch:
+                    self._save_results({r["id"]: r for r in current_batch})
         
         return [result_dict[id] for id in sorted(id_list, key=lambda x: int(x.split("_")[0]))]
     
@@ -503,64 +504,17 @@ class HuggingFaceGenerator(BaseGenerator):
                         self._save_results({r["id"]: r for r in current_batch})
                         futures.clear()  
             
+                current_batch = []
                 if futures:
-                    current_batch = []
                     for future in as_completed(futures):
                         result = future.result()
                         result_dict[result["id"]] = result
                         current_batch.append(result)
-                self._save_results({r["id"]: r for r in current_batch})
+                if current_batch:
+                    self._save_results({r["id"]: r for r in current_batch})
         
         return [result_dict[id] for id in sorted(id_list, key=lambda x: int(x.split("_")[0]))]
-    
-class LocalGenerator(HuggingFaceGenerator):
-    def __init__(self, config, prompt_builder, **kwargs):
-        super(HuggingFaceGenerator, self).__init__(config, **kwargs)
-        self.prompt_builder = prompt_builder
-        
-        from transformers import AutoModelForCausalLM, AutoTokenizer
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            config["model_path"],
-            trust_remote_code=True
-        )
-        self.model = AutoModelForCausalLM.from_pretrained(
-            config["model_path"],
-            device_map="cpu", 
-            torch_dtype="auto", 
-            trust_remote_code=True
-        )
-        
-    def _call_api(self, messages, item_id, question, articles, system_prompt):
-        try:
-            full_messages = []
-            if system_prompt:
-                full_messages.append({"role": "system", "content": system_prompt})
-            full_messages.extend(messages)
-            
-            inputs = self.tokenizer.apply_chat_template(
-                full_messages,
-                tokenize=False,
-                add_generation_prompt=True
-            )
-            model_inputs = self.tokenizer(inputs, return_tensors="pt")
-            
-            outputs = self.model.generate(
-                model_inputs.input_ids, 
-                do_sample=False
-            )
-            response = self.tokenizer.decode(
-                outputs[0][len(model_inputs.input_ids[0]):], 
-                skip_special_tokens=True
-            )
-            return {
-                "id": item_id,
-                "question": question,
-                "response": response
-            }
-        except Exception as e:
-            print(f"Generate Error：{str(e)}")
-            return {"id": item_id, "question": question, "response": ""}
-        
+
 class LocalGenerator(BaseGenerator):
     """Local Models"""
     def __init__(self, prompt_builder, *args, **kwargs):

@@ -23,12 +23,17 @@ class UnifiedEvaluator:
         ]
 
         self.smoothie = SmoothingFunction().method1
-        self.tokenizer = AutoTokenizer.from_pretrained(
-            "hfl/chinese-bert-wwm",
-            use_fast=True  
-        )
+        self.tokenizer = None
         self.max_seq_length = max_seq_length
         self._init_jieba()
+
+    def _get_tokenizer(self):
+        if self.tokenizer is None:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                "hfl/chinese-bert-wwm",
+                use_fast=True
+            )
+        return self.tokenizer
 
     def _init_jieba(self):
         jieba.initialize()
@@ -66,7 +71,7 @@ class UnifiedEvaluator:
             return ""
         
         try:
-            tokens = self.tokenizer.encode(
+            tokens = self._get_tokenizer().encode(
                 text,
                 truncation=True,
                 max_length=self.max_seq_length,
@@ -227,7 +232,8 @@ class UnifiedEvaluator:
         return ' '.join(jieba.cut(text))
 
     def _get_meteor(self, preds, refs):
-        nltk.download('wordnet')
+        nltk.download('wordnet', quiet=True)
+        nltk.download('omw-1.4', quiet=True)
         scores = []
         for p, r in zip(preds, refs):
             p=self._clean_text(p)
